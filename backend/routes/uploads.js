@@ -20,30 +20,30 @@ const avatarStorage = multer.diskStorage({
   },
 });
 
-// === Post media storage (unique per upload) ===
+// === Post media storage (unique per upload) ✅ FIXED
 const mediaStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const base = path.basename(file.originalname, ext);
     const finalName = `media-${Date.now()}-${base}${ext}`;
-    console.log('Saved to:', path.join(uploadDir, finalName));
+    console.log('✅ Saved to:', path.join(uploadDir, finalName));
     cb(null, finalName);
-  }
+  },
 });
 
+// === Uploaders
 const avatarUpload = multer({ storage: avatarStorage });
 const mediaUpload = multer({ storage: mediaStorage });
+const upload = multer({ storage: mediaStorage }); // general fallback
 
-// === General file upload ===
-const upload = multer({ storage: mediaStorage });
-
+// === General file upload
 router.post('/', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ filename: req.file.filename, path: `/uploads/${req.file.filename}` });
 });
 
-// === Avatar upload with user authentication ===
+// === Avatar upload with auth
 router.post('/avatar', authMiddleware, avatarUpload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No avatar uploaded' });
 
@@ -62,7 +62,7 @@ router.post('/avatar', authMiddleware, avatarUpload.single('avatar'), async (req
   }
 });
 
-// === Post media upload ===
+// === Post media upload (single)
 router.post('/post', authMiddleware, mediaUpload.single('media'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media uploaded' });
 
@@ -70,7 +70,7 @@ router.post('/post', authMiddleware, mediaUpload.single('media'), (req, res) => 
   res.json({ message: 'Media uploaded successfully', url: mediaPath });
 });
 
-// === Upload multiple images/videos and return URLs ===
+// === Multiple media upload (array)
 router.post('/media', authMiddleware, mediaUpload.array('media', 5), async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'No media files uploaded' });
