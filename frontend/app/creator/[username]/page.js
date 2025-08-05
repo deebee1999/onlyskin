@@ -19,7 +19,6 @@ export default function CreatorPage({ params }) {
       return;
     }
 
-    // Fetch creator posts
     fetch(`http://localhost:5000/api/creator/${username}/posts`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -40,7 +39,6 @@ export default function CreatorPage({ params }) {
         setLoading(false);
       });
 
-    // Fetch follow status
     fetch(`http://localhost:5000/api/user/${username}/follow-status`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -165,22 +163,27 @@ export default function CreatorPage({ params }) {
 
                 {post.media_urls && post.media_urls.length > 0 && (
                   <div className="flex flex-wrap gap-4 mt-2">
-                    {post.media_urls.map((media, i) => {
-                      const fullUrl = media.url.startsWith('http')
-                        ? media.url
-                        : `http://localhost:5000${media.url}`;
-                      return media.type.startsWith('video') ? (
-                        <video key={i} controls className="w-full sm:w-40 rounded border">
-                          <source src={fullUrl} type={media.type} />
-                          Your browser does not support the video tag.
-                        </video>
+                    {post.media_urls.map((item, i) => {
+                      let url = typeof item === 'string' ? item : item?.url || '';
+                      if (url.startsWith('{')) {
+                        try {
+                          const parsed = JSON.parse(url);
+                          url = parsed.url;
+                        } catch (e) {
+                          console.error('Invalid media url object:', url);
+                        }
+                      }
+                      if (url.startsWith('http:/') && !url.startsWith('http://')) {
+                        url = url.replace('http:/', 'http://');
+                      }
+                      const fullUrl = url.startsWith('http')
+                        ? url
+                        : `http://localhost:5000${url}`;
+                      const type = item?.type || '';
+                      return type.startsWith('video') ? (
+                        <video key={i} src={fullUrl} controls className="w-full sm:w-40 rounded border" />
                       ) : (
-                        <img
-                          key={i}
-                          src={fullUrl}
-                          alt={`media-${i}`}
-                          className="w-full sm:w-40 rounded border"
-                        />
+                        <img key={i} src={fullUrl} alt={`media-${i}`} className="w-full sm:w-40 rounded border" />
                       );
                     })}
                   </div>
