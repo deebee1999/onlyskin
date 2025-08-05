@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 
 export default function CreatorPage({ params }) {
-  const [unlockedIds, setUnlockedIds] = useState([]);
-  const username = params.username.toLowerCase();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+
+  const username = params.username.toLowerCase();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -19,6 +19,7 @@ export default function CreatorPage({ params }) {
       return;
     }
 
+    // Fetch creator posts
     fetch(`http://localhost:5000/api/creator/${username}/posts`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -32,35 +33,6 @@ export default function CreatorPage({ params }) {
       .then((data) => {
         setPosts(data);
         setLoading(false);
-
-        fetch('http://localhost:5000/api/purchases/mine', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            const unlockedPostIds = data.purchased.map((p) => p.postId);
-            const purchaseMap = Object.fromEntries(
-              data.purchased.map((p) => [p.postId, p.purchased_at])
-            );
-
-            setUnlockedIds(unlockedPostIds);
-
-            setPosts((prev) =>
-              prev.map((post) =>
-                unlockedPostIds.includes(post.id)
-                  ? {
-                      ...post,
-                      unlocked: true,
-                      expired: false,
-                      purchased_at: purchaseMap[post.id],
-                    }
-                  : post
-              )
-            );
-          })
-          .catch((err) => {
-            console.error('Failed to fetch unlocks:', err.message);
-          });
       })
       .catch((err) => {
         console.error('Fetch posts error:', err.message);
@@ -68,6 +40,7 @@ export default function CreatorPage({ params }) {
         setLoading(false);
       });
 
+    // Fetch follow status
     fetch(`http://localhost:5000/api/user/${username}/follow-status`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -180,8 +153,8 @@ export default function CreatorPage({ params }) {
       {posts.length === 0 ? (
         <p className="text-center">No posts found.</p>
       ) : (
-        posts.map((post, index) => (
-          <div key={index} className="w-full bg-gray-800 rounded-xl p-5 mb-8 shadow-lg">
+        posts.map((post) => (
+          <div key={post.id} className="w-full bg-gray-800 rounded-xl p-5 mb-8 shadow-lg">
             <h2 className="text-lg font-bold">{post.title}</h2>
             <p className="text-sm text-gray-400">Price: ${post.price}</p>
             <p className="text-xs text-gray-500">Post ID: {post.id}</p>
@@ -192,13 +165,22 @@ export default function CreatorPage({ params }) {
 
                 {post.media_urls && post.media_urls.length > 0 && (
                   <div className="flex flex-wrap gap-4 mt-2">
-                    {post.media_urls.map((item, i) => {
-                      const url = typeof item === 'string' ? item : item?.url || '';
-                      const fullUrl = url.startsWith('http') ? url : `http://localhost:5000${url}`;
-                      return url.endsWith('.mp4') ? (
-                        <video key={i} src={fullUrl} controls className="w-full sm:w-40 rounded border" />
+                    {post.media_urls.map((media, i) => {
+                      const fullUrl = media.url.startsWith('http')
+                        ? media.url
+                        : `http://localhost:5000${media.url}`;
+                      return media.type.startsWith('video') ? (
+                        <video key={i} controls className="w-full sm:w-40 rounded border">
+                          <source src={fullUrl} type={media.type} />
+                          Your browser does not support the video tag.
+                        </video>
                       ) : (
-                        <img key={i} src={fullUrl} alt={`media-${i}`} className="w-full sm:w-40 rounded border" />
+                        <img
+                          key={i}
+                          src={fullUrl}
+                          alt={`media-${i}`}
+                          className="w-full sm:w-40 rounded border"
+                        />
                       );
                     })}
                   </div>
