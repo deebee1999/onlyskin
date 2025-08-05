@@ -9,7 +9,7 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // Find creator by username (case-insensitive)
+    // Case-insensitive username match
     const creatorRes = await pool.query(
       'SELECT id FROM users WHERE username ILIKE $1',
       [username]
@@ -21,37 +21,35 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
 
     const creatorId = creatorRes.rows[0].id;
 
-    // Fetch posts with media URLs
-    const postsRes = await pool.query(`
-      SELECT 
-        p.id, 
-        p.title, 
-        p.content, 
-        p.price,
-        COALESCE(json_agg(
-          json_build_object(
-            'url', m.url,
-            'type', m.type
-          )
-        ) FILTER (WHERE m.id IS NOT NULL), '[]') AS media_urls
-      FROM posts p
-      LEFT JOIN media m ON m.post_id = p.id
-      WHERE p.creator_id = $1
-      GROUP BY p.id
-      ORDER BY p.id DESC
-    `, [creatorId]);
+    // Get creator's posts with media
+    const postsRes = await pool.query(
+      'SELECT id, title, content, price, created_at FROM posts WHERE creator_id = $1 ORDER BY created_at DESC',
+      [creatorId]
+    );
 
+    // Fetch associated media
+    const mediaRes = await pool.query(
+      'SELECT post_id, url, type FROM post_media WHERE post_id = ANY($1)',
+      [postsRes.rows.map(p => p.id)]
+    );
+
+    const mediaMap = {};
+    mediaRes.rows.forEach(({ post_id, url, type }) => {
+      if (!mediaMap[post_id]) mediaMap[post_id] = [];
+      mediaMap[post_id].push({ url, type });
+    });
+
+    // Purchases by the viewer
     const purchaseRes = await pool.query(
       'SELECT post_id, created_at FROM purchases WHERE buyer_id = $1',
       [userId]
     );
-
     const purchases = purchaseRes.rows;
 
+    // Merge posts with purchase info and expiration
     const posts = postsRes.rows.map(post => {
       const purchase = purchases.find(p => p.post_id === post.id);
       const purchasedAt = purchase?.created_at;
-
       const expired = purchasedAt
         ? new Date(purchasedAt) < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
         : false;
@@ -64,7 +62,8 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
         unlocked: !!purchase && !expired,
         expired,
         purchased_at: purchasedAt,
-        media_urls: post.media_urls || []
+        media_urls: mediaMap[post.id] || [],
+        userIsCreator: userId === creatorId  // ✅ Add this flag
       };
     });
 
