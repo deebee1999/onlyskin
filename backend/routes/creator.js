@@ -1,0 +1,70 @@
+const express = require('express');
+const router = express.Router();
+const pool = require('../db');
+const authMiddleware = require('../middleware/auth');
+
+// GET /api/creator/:username/posts
+router.get('/:username/posts', authMiddleware, async (req, res) => {
+  const { username } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const creatorRes = await pool.query(
+      'SELECT id FROM users WHERE username ILIKE $1',
+      [username]
+    );
+
+    if (creatorRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+
+    const creatorId = creatorRes.rows[0].id;
+
+    // Get posts with media URLs joined
+    const postsRes = await pool.query(
+      `SELECT 
+         posts.id, posts.title, posts.content, posts.price,
+         COALESCE(json_agg(pm.url) FILTER (WHERE pm.url IS NOT NULL), '[]') AS media_urls
+       FROM posts
+       LEFT JOIN post_media pm ON posts.id = pm.post_id
+       WHERE posts.creator_id = $1
+       GROUP BY posts.id
+       ORDER BY posts.created_at DESC`,
+      [creatorId]
+    );
+
+    const purchaseRes = await pool.query(
+      'SELECT post_id, created_at FROM purchases WHERE buyer_id = $1',
+      [userId]
+    );
+
+    const purchases = purchaseRes.rows;
+
+    const posts = postsRes.rows.map(post => {
+      const purchase = purchases.find(p => p.post_id === post.id);
+      const purchasedAt = purchase?.created_at;
+
+      const expired = purchasedAt
+        ? new Date(purchasedAt) < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        : false;
+
+      return {
+        id: post.id,
+        title: post.title,
+        price: post.price,
+        content: expired ? '' : post.content,
+        media_urls: expired ? [] : post.media_urls,
+        unlocked: !!purchase && !expired,
+        expired,
+        purchased_at: purchasedAt
+      };
+    });
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error fetching creator posts:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+module.exports = router;
