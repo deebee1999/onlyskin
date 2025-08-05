@@ -1,5 +1,3 @@
-
-
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -13,7 +11,6 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
-
 // === Avatar storage (fixed name) ===
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -26,18 +23,17 @@ const avatarStorage = multer.diskStorage({
 // === Post media storage (unique per upload) ===
 const mediaStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-filename: (req, file, cb) => {
-  const ext = path.extname(file.originalname);
-  const base = path.basename(file.originalname, ext);
-  const finalName = `media-${Date.now()}-${base}${ext}`;
-  console.log('Saved to:', path.join(uploadDir, finalName)); 
-  cb(null, finalName);
-}
-
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext);
+    const finalName = `media-${Date.now()}-${base}${ext}`;
+    console.log('Saved to:', path.join(uploadDir, finalName));
+    cb(null, finalName);
+  }
+});
 
 const avatarUpload = multer({ storage: avatarStorage });
 const mediaUpload = multer({ storage: mediaStorage });
-
 
 // === General file upload ===
 const upload = multer({ storage: mediaStorage });
@@ -49,7 +45,6 @@ router.post('/', upload.single('file'), (req, res) => {
 
 // === Avatar upload with user authentication ===
 router.post('/avatar', authMiddleware, avatarUpload.single('avatar'), async (req, res) => {
-
   if (!req.file) return res.status(400).json({ error: 'No avatar uploaded' });
 
   const db = req.app.get('db');
@@ -69,7 +64,6 @@ router.post('/avatar', authMiddleware, avatarUpload.single('avatar'), async (req
 
 // === Post media upload ===
 router.post('/post', authMiddleware, mediaUpload.single('media'), (req, res) => {
-
   if (!req.file) return res.status(400).json({ error: 'No media uploaded' });
 
   const mediaPath = `/uploads/${req.file.filename}`;
@@ -78,18 +72,16 @@ router.post('/post', authMiddleware, mediaUpload.single('media'), (req, res) => 
 
 // === Upload multiple images/videos and return URLs ===
 router.post('/media', authMiddleware, mediaUpload.array('media', 5), async (req, res) => {
-
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'No media files uploaded' });
   }
 
   try {
-   const baseUrl = `${req.protocol}://${req.get('host')}`;
-const urls = req.files.map((file) => ({
-  url: `${baseUrl}/uploads/${file.filename}`,
-  type: file.mimetype.startsWith('video') ? 'video' : 'image',
-}));
-
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const urls = req.files.map((file) => ({
+      url: `${baseUrl}/uploads/${file.filename}`,
+      type: file.mimetype.startsWith('video') ? 'video' : 'image',
+    }));
 
     res.json({ success: true, urls });
   } catch (err) {
@@ -97,8 +89,5 @@ const urls = req.files.map((file) => ({
     res.status(500).json({ error: 'Upload failed' });
   }
 });
-
-
-
 
 module.exports = router;

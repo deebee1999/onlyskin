@@ -9,6 +9,7 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
+    // Case-insensitive username match
     const creatorRes = await pool.query(
       'SELECT id FROM users WHERE username ILIKE $1',
       [username]
@@ -20,19 +21,30 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
 
     const creatorId = creatorRes.rows[0].id;
 
-    // Get posts with media URLs joined
+    // Get posts with media URLs
     const postsRes = await pool.query(
-      `SELECT 
-         posts.id, posts.title, posts.content, posts.price,
-         COALESCE(json_agg(pm.url) FILTER (WHERE pm.url IS NOT NULL), '[]') AS media_urls
-       FROM posts
-       LEFT JOIN post_media pm ON posts.id = pm.post_id
-       WHERE posts.creator_id = $1
-       GROUP BY posts.id
-       ORDER BY posts.created_at DESC`,
+      `
+      SELECT 
+        posts.id, posts.title, posts.content, posts.price,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'url', pm.url,
+              'type', pm.media_type
+            )
+          ) FILTER (WHERE pm.url IS NOT NULL), 
+          '[]'
+        ) AS media_urls
+      FROM posts
+      LEFT JOIN post_media pm ON posts.id = pm.post_id
+      WHERE posts.creator_id = $1
+      GROUP BY posts.id
+      ORDER BY posts.created_at DESC
+      `,
       [creatorId]
     );
 
+    // ✅ Fix: use buyer_id instead of user_id
     const purchaseRes = await pool.query(
       'SELECT post_id, created_at FROM purchases WHERE buyer_id = $1',
       [userId]
@@ -40,6 +52,7 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
 
     const purchases = purchaseRes.rows;
 
+    // Merge posts with purchase data and expiration logic
     const posts = postsRes.rows.map(post => {
       const purchase = purchases.find(p => p.post_id === post.id);
       const purchasedAt = purchase?.created_at;
@@ -53,10 +66,10 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
         title: post.title,
         price: post.price,
         content: expired ? '' : post.content,
-        media_urls: expired ? [] : post.media_urls,
         unlocked: !!purchase && !expired,
         expired,
-        purchased_at: purchasedAt
+        purchased_at: purchasedAt,
+        media_urls: post.media_urls || []
       };
     });
 
