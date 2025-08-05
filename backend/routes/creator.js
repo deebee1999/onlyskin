@@ -9,7 +9,7 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // Case-insensitive username match
+    // Find creator by username (case-insensitive)
     const creatorRes = await pool.query(
       'SELECT id FROM users WHERE username ILIKE $1',
       [username]
@@ -21,30 +21,26 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
 
     const creatorId = creatorRes.rows[0].id;
 
-    // Get posts with media URLs
-    const postsRes = await pool.query(
-      `
+    // Fetch posts with media URLs
+    const postsRes = await pool.query(`
       SELECT 
-        posts.id, posts.title, posts.content, posts.price,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'url', pm.url,
-              'type', pm.media_type
-            )
-          ) FILTER (WHERE pm.url IS NOT NULL), 
-          '[]'
-        ) AS media_urls
-      FROM posts
-      LEFT JOIN post_media pm ON posts.id = pm.post_id
-      WHERE posts.creator_id = $1
-      GROUP BY posts.id
-      ORDER BY posts.created_at DESC
-      `,
-      [creatorId]
-    );
+        p.id, 
+        p.title, 
+        p.content, 
+        p.price,
+        COALESCE(json_agg(
+          json_build_object(
+            'url', m.url,
+            'type', m.type
+          )
+        ) FILTER (WHERE m.id IS NOT NULL), '[]') AS media_urls
+      FROM posts p
+      LEFT JOIN media m ON m.post_id = p.id
+      WHERE p.creator_id = $1
+      GROUP BY p.id
+      ORDER BY p.id DESC
+    `, [creatorId]);
 
-    // ✅ Fix: use buyer_id instead of user_id
     const purchaseRes = await pool.query(
       'SELECT post_id, created_at FROM purchases WHERE buyer_id = $1',
       [userId]
@@ -52,7 +48,6 @@ router.get('/:username/posts', authMiddleware, async (req, res) => {
 
     const purchases = purchaseRes.rows;
 
-    // Merge posts with purchase data and expiration logic
     const posts = postsRes.rows.map(post => {
       const purchase = purchases.find(p => p.post_id === post.id);
       const purchasedAt = purchase?.created_at;
