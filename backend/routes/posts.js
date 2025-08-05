@@ -134,4 +134,30 @@ router.post('/', authenticateToken, createPostLimiter, async (req, res) => {
   }
 });
 
+// DELETE /api/posts/:id — Delete a post by ID
+router.delete('/:id', authenticateToken, async (req, res) => {
+  const postId = req.params.id;
+  const userId = req.user.id;
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT creator_id FROM posts WHERE id = $1',
+      [postId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Post not found' });
+    if (rows[0].creator_id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    await pool.query('DELETE FROM post_media WHERE post_id = $1', [postId]);
+    await pool.query('DELETE FROM posts WHERE id = $1', [postId]);
+
+    res.json({ message: 'Post deleted successfully', postId });
+  } catch (err) {
+    console.error('Delete post error:', err);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+
 module.exports = router;
