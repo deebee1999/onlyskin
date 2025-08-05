@@ -19,9 +19,8 @@ export default function CreatorPage({ params }) {
       return;
     }
 
-    // Fetch posts
     fetch(`http://localhost:5000/api/creator/${username}/posts`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -34,33 +33,32 @@ export default function CreatorPage({ params }) {
         setPosts(data);
         setLoading(false);
 
-        // Fetch unlocked post IDs
         fetch('http://localhost:5000/api/purchases/mine', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         })
-          .then(res => res.json())
-          .then(data => {
-            const unlockedPostIds = data.purchased.map(p => p.postId);
+          .then((res) => res.json())
+          .then((data) => {
+            const unlockedPostIds = data.purchased.map((p) => p.postId);
             const purchaseMap = Object.fromEntries(
-              data.purchased.map(p => [p.postId, p.purchased_at])
+              data.purchased.map((p) => [p.postId, p.purchased_at])
             );
 
             setUnlockedIds(unlockedPostIds);
 
-            setPosts(prev =>
-              prev.map(post =>
+            setPosts((prev) =>
+              prev.map((post) =>
                 unlockedPostIds.includes(post.id)
                   ? {
                       ...post,
                       unlocked: true,
                       expired: false,
-                      purchased_at: purchaseMap[post.id]
+                      purchased_at: purchaseMap[post.id],
                     }
                   : post
               )
             );
           })
-          .catch(err => {
+          .catch((err) => {
             console.error('Failed to fetch unlocks:', err.message);
           });
       })
@@ -70,13 +68,12 @@ export default function CreatorPage({ params }) {
         setLoading(false);
       });
 
-    // Fetch follow status
     fetch(`http://localhost:5000/api/user/${username}/follow-status`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.json())
-      .then(data => setIsFollowing(data.following))
-      .catch(err => {
+      .then((res) => res.json())
+      .then((data) => setIsFollowing(data.following))
+      .catch((err) => {
         console.error('Failed to check follow status:', err.message);
       });
   }, [username]);
@@ -90,23 +87,43 @@ export default function CreatorPage({ params }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           price: post.price * 100,
           productName: `Unlock post #${post.id}`,
-          postId: post.id
-        })
+          postId: post.id,
+        }),
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
       window.location.href = data.url;
     } catch (err) {
       console.error('Unlock error:', err.message);
       alert('Redirect to checkout failed: ' + err.message);
+    }
+  };
+
+  const handleDelete = async (postId) => {
+    const token = localStorage.getItem('token');
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete post');
+      }
+
+      setPosts((prev) => prev.filter((post) => post.id !== postId));
+    } catch (err) {
+      console.error('Delete failed:', err.message);
+      alert('Failed to delete post');
     }
   };
 
@@ -116,7 +133,7 @@ export default function CreatorPage({ params }) {
     try {
       const res = await fetch(`http://localhost:5000/api/follow/${username}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setIsFollowing(true);
     } catch (err) {
@@ -132,36 +149,13 @@ export default function CreatorPage({ params }) {
     try {
       const res = await fetch(`http://localhost:5000/api/follow/${username}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setIsFollowing(false);
     } catch (err) {
       console.error('Unfollow failed:', err.message);
     } finally {
       setFollowLoading(false);
-    }
-  };
-
-  const handleDelete = async (postId) => {
-    const token = localStorage.getItem('token');
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
-    try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        alert('Delete failed: ' + data.error);
-        return;
-      }
-
-      setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (err) {
-      console.error('Delete error:', err.message);
-      alert('Delete failed: ' + err.message);
     }
   };
 
@@ -223,15 +217,6 @@ export default function CreatorPage({ params }) {
                     day(s)
                   </p>
                 )}
-
-                {post.userIsCreator && (
-                  <button
-                    onClick={() => handleDelete(post.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded mt-2"
-                  >
-                    Delete
-                  </button>
-                )}
               </>
             ) : post.expired ? (
               <div>
@@ -255,6 +240,15 @@ export default function CreatorPage({ params }) {
                 </button>
                 <p className="text-xs text-gray-400 mt-1">Locked content</p>
               </div>
+            )}
+
+            {post.userIsCreator && (
+              <button
+                onClick={() => handleDelete(post.id)}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded mt-4"
+              >
+                Delete Post
+              </button>
             )}
           </div>
         ))
