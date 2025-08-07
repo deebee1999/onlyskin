@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router(); // ✅ ensure router is defined
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -19,20 +19,32 @@ const transporter = nodemailer.createTransport({
 // POST /api/auth/signup
 // =========================
 router.post('/signup', async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, role = 'subscriber' } = req.body;
+
+  if (!['creator', 'subscriber'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be creator or subscriber' });
+  }
+
   try {
-    const exists = await pool.query('SELECT * FROM users WHERE email = $1 OR username = $2', [email, username]);
+    const exists = await pool.query(
+      'SELECT * FROM users WHERE email = $1 OR username = $2',
+      [email, username]
+    );
+
     if (exists.rows.length > 0) {
       return res.status(400).json({ error: 'Email or username already exists' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
     const newUser = await pool.query(
-      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email',
-      [username, email, hashed]
+      'INSERT INTO users (username, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role',
+      [username, email, hashed, role]
     );
 
-    const token = jwt.sign({ id: newUser.rows[0].id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: newUser.rows[0].id }, process.env.JWT_SECRET, {
+      expiresIn: '1d'
+    });
+
     res.json({ token, user: newUser.rows[0] });
   } catch (err) {
     console.error('Signup error:', err);
@@ -54,16 +66,21 @@ router.post('/login', async (req, res) => {
     if (!match) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
   }
 });
-
-// =========================
-// POST /api/auth/forgot-password
-// =========================
 
 // =========================
 // POST /api/auth/forgot-password
@@ -101,13 +118,11 @@ router.post('/forgot-password', async (req, res) => {
     });
 
     res.json({ message: 'Password reset email sent' });
-
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 // =========================
 // POST /api/auth/reset-password

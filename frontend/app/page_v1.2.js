@@ -18,7 +18,8 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white flex flex-col justify-center items-center px-4 py-12 sm:p-8">
       {/* Hero */}
-       <p className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-8 text-center max-w-xl">
+
+      <p className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-8 text-center max-w-xl">
         Exclusive content from your favorite creators. Sexy. Private. Premium.
       </p>
 

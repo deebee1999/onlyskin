@@ -1,126 +1,61 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Menu, X } from 'lucide-react'; // Lucide icons (already available)
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [token, setToken] = useState(null);
-  const [searchValue, setSearchValue] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const t = localStorage.getItem('token');
-    setToken(t);
-  }, [pathname]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    router.push('/');
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (!searchValue.trim()) return;
-    const username = searchValue.trim().toLowerCase();
-    router.push(`/creator/${username}`);
-    setSearchValue('');
-    setMenuOpen(false); // Close mobile menu after search
-  };
+  const { user, token, logout, loading } = useAuth();
 
   return (
-    <nav className="bg-gray-900 text-white p-4">
-      <div className="flex justify-between items-center">
-        {/* Brand & Toggle */}
-        <div className="flex items-center space-x-4">
-          <Link href="/" className="font-bold text-pink-500 text-xl">OnlySkins</Link>
-        </div>
-
-        {/* Mobile Menu Toggle */}
-        <div className="sm:hidden">
-          <button onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-
-        {/* Desktop Nav */}
-        <div className="hidden sm:flex items-center space-x-4">
-          <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-          {token && <Link href="/profile" className="hover:underline">Profile</Link>}
-
-          <form onSubmit={handleSearch} className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search username"
-              className="p-1 rounded bg-gray-700 text-white"
-            />
-            <button
-              type="submit"
-              className="bg-pink-600 hover:bg-pink-700 text-white py-1 px-2 rounded"
-            >
-              Search
-            </button>
-          </form>
-
-          {token ? (
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded"
-            >
-              Logout
-            </button>
-          ) : (
-            <>
-              <Link href="/login" className="hover:underline">Login</Link>
-              <Link href="/signup" className="hover:underline">Join Now</Link>
-            </>
-          )}
-        </div>
+    <nav className="bg-black text-white px-6 py-4 flex items-center justify-between shadow">
+      {/* ✅ LEFT: Always show logo */}
+      <div>
+        <Link href="/" className="text-xl font-bold text-pink-500">
+          OnlySkins
+        </Link>
       </div>
 
-      {/* Mobile Menu Dropdown */}
-      {menuOpen && (
-        <div className="flex flex-col mt-4 space-y-2 sm:hidden">
-          <Link href="/dashboard" className="hover:underline" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-          {token && <Link href="/profile" className="hover:underline" onClick={() => setMenuOpen(false)}>Profile</Link>}
+      {/* ✅ RIGHT: Auth links */}
+      <div className="flex items-center gap-4">
+        {!loading && !user && (
+          <>
+            <Link href="/signup" className="hover:text-pink-400">
+              Sign Up
+            </Link>
+            <Link href="/login" className="hover:text-pink-400">
+              Login
+            </Link>
+          </>
+        )}
 
-          <form onSubmit={handleSearch} className="flex flex-col space-y-2">
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search username"
-              className="p-2 rounded bg-gray-700 text-white"
-            />
-            <button
-              type="submit"
-              className="bg-pink-600 hover:bg-pink-700 text-white py-2 px-4 rounded"
-            >
-              Search
-            </button>
-          </form>
-
-          {token ? (
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded"
-            >
+        {!loading && user?.role === 'creator' && (
+          <>
+            <Link href="/dashboard" className="hover:text-pink-400">
+              Dashboard
+            </Link>
+            <Link href={`/creator/${user.username}`} className="hover:text-pink-400">
+              Profile
+            </Link>
+            <button onClick={logout} className="text-white hover:text-pink-400 ml-2">
               Logout
             </button>
-          ) : (
-            <>
-              <Link href="/login" className="hover:underline" onClick={() => setMenuOpen(false)}>Login</Link>
-              <Link href="/signup" className="hover:underline" onClick={() => setMenuOpen(false)}>Join Now</Link>
-            </>
-          )}
-        </div>
-      )}
+          </>
+        )}
+
+        {!loading && user?.role === 'subscriber' && (
+          <>
+            <Link href="/purchases" className="hover:text-pink-400">
+              Purchases
+            </Link>
+            <Link href={`/creator/${user.username}`} className="hover:text-pink-400">
+              Profile
+            </Link>
+            <button onClick={logout} className="text-white hover:text-pink-400 ml-2">
+              Logout
+            </button>
+          </>
+        )}
+      </div>
     </nav>
   );
 }

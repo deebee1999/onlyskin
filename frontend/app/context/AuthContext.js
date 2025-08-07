@@ -7,10 +7,14 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
-    if (!storedToken) return;
+    if (!storedToken) {
+      setLoading(false); // ✅ No token = no user, still mark as loaded
+      return;
+    }
 
     setToken(storedToken);
 
@@ -19,19 +23,36 @@ export function AuthProvider({ children }) {
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data) setUser(data);
+        if (data) {
+          setUser({
+            id: data.id,
+            username: data.username,
+            email: data.email,
+            role: data.role,
+          });
+        } else {
+          localStorage.removeItem('token');
+        }
+        setLoading(false); // ✅ Done checking
       })
       .catch(() => {
         setUser(null);
         setToken(null);
         localStorage.removeItem('token');
+        setLoading(false); // ✅ Even if error, we're done
       });
   }, []);
+
 
   const login = (token, userData) => {
     localStorage.setItem('token', token);
     setToken(token);
-    setUser(userData);
+    setUser({
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      role: userData.role, // ✅ Include role at login
+    });
   };
 
   const logout = () => {
@@ -40,11 +61,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+   return (
+    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
+
 }
 
 export const useAuth = () => useContext(AuthContext);

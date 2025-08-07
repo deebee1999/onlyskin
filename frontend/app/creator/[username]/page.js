@@ -130,6 +130,8 @@ export default function CreatorPage({ params }) {
     }
   };
 
+  console.log('posts:', posts);
+
   if (loading) return <p className="text-center py-8">Loading...</p>;
   if (errorMsg) return <p className="text-red-400 text-center py-8">{errorMsg}</p>;
 
@@ -173,13 +175,16 @@ export default function CreatorPage({ params }) {
                           console.error('Invalid media url object:', url);
                         }
                       }
-                      if (url.startsWith('http:/') && !url.startsWith('http://')) {
-                        url = url.replace('http:/', 'http://');
-                      }
-                      const fullUrl = url.startsWith('http')
-                        ? url
-                        : `http://localhost:5000${url}`;
+
+                      const fullUrl = `http://localhost:5000${url.startsWith('/') ? url : '/' + url}`;
                       const type = item?.type || '';
+
+                      // ✅ Debug log:
+                      console.log(`[Media Debug] item:`, item);
+                      console.log(`[Media Debug] raw url:`, url);
+                      console.log(`[Media Debug] fullUrl:`, fullUrl);
+                      console.log(`[Media Debug] type:`, type);
+
                       return type.startsWith('video') ? (
                         <video key={i} src={fullUrl} controls className="w-full sm:w-40 rounded border" />
                       ) : (

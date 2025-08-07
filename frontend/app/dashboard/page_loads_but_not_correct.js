@@ -1,10 +1,12 @@
-// before mobile update----------------------------
-
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext'; // ✅ valid relative import
+
+import NewPostForm from './NewPostForm';
 
 export default function DashboardPage() {
+  const { user } = useAuth(); // ✅ Get user from context
   const [posts, setPosts] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export default function DashboardPage() {
         setLoading(false);
       });
 
-    // Fetch follower stats
+    // Follower stats
     fetch('http://localhost:5000/api/user/stats', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -56,7 +58,7 @@ export default function DashboardPage() {
         console.error('Failed to load follower stats:', err.message);
       });
 
-    // Notifications polling
+    // Notifications
     const fetchNotifications = () => {
       fetch('http://localhost:5000/api/notifications', {
         headers: { Authorization: `Bearer ${token}` },
@@ -86,18 +88,19 @@ export default function DashboardPage() {
     });
   };
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p className="text-red-500">{error}</p>;
+  if (loading) return <p className="p-4">Loading...</p>;
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
-    <main className="p-8 relative">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-3xl font-bold">Your Dashboard</h1>
+    <main className="p-4 sm:p-6 md:p-8 relative min-h-screen bg-black text-white">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Your Dashboard</h1>
 
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-2 sm:gap-4 flex-wrap">
           <button
             onClick={handleNotificationsClick}
-            className="relative bg-zinc-700 text-white px-3 py-1 rounded hover:bg-zinc-600"
+            className="relative bg-zinc-700 px-3 py-1.5 rounded hover:bg-zinc-600 text-sm sm:text-base"
           >
             🔔 Notifications
             {unreadCount > 0 && (
@@ -107,18 +110,20 @@ export default function DashboardPage() {
             )}
           </button>
 
-          <button
-            className="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-4 rounded"
-            onClick={() => window.location.href = '/create-post'}
-          >
-            + New Post
-          </button>
+          {user?.role === 'creator' && (
+            <button
+              className="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-4 rounded text-sm sm:text-base"
+              onClick={() => window.location.href = '/create-post'}
+            >
+              + New Post
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Notifications dropdown */}
+      {/* Notifications Panel */}
       {showNotifications && (
-        <div className="absolute right-8 top-20 bg-zinc-800 text-white w-80 p-4 rounded shadow-lg z-50">
+        <div className="absolute right-4 sm:right-8 top-28 sm:top-24 bg-zinc-800 w-full sm:w-80 p-4 rounded shadow-lg z-50">
           <h3 className="text-lg font-bold mb-2">Notifications</h3>
           {notifications.length === 0 ? (
             <p className="text-sm text-gray-400">No notifications yet</p>
@@ -126,15 +131,9 @@ export default function DashboardPage() {
             <ul className="space-y-2 max-h-64 overflow-y-auto">
               {notifications.map((n) => (
                 <li key={n.id} className="border-b border-zinc-700 pb-2">
-                  {n.type === 'follow' && (
-                    <p className="text-sm">🎉 Someone followed you!</p>
-                  )}
-                  {n.type === 'unlock' && (
-                    <p className="text-sm">💰 Someone unlocked post #{n.metadata?.post_id}</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(n.created_at).toLocaleString()}
-                  </p>
+                  {n.type === 'follow' && <p className="text-sm">🎉 Someone followed you!</p>}
+                  {n.type === 'unlock' && <p className="text-sm">💰 Someone unlocked post #{n.metadata?.post_id}</p>}
+                  <p className="text-xs text-gray-500 mt-1">{new Date(n.created_at).toLocaleString()}</p>
                 </li>
               ))}
             </ul>
@@ -142,26 +141,35 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="mb-6 space-y-2">
-        <div className="text-sm text-gray-300">
-          👥 Followers: <strong>{followers}</strong><br />
+      {/* Stats and Purchases */}
+      <div className="mb-6 space-y-2 text-sm sm:text-base">
+        <div className="text-gray-300">
+          👥 Followers: <strong>{followers}</strong> <br />
           ➡️ Following: <strong>{following}</strong>
         </div>
 
-        <a
-          href="/purchases"
-          className="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
-        >
-          View My Purchases
-        </a>
+        {user?.role === 'subscriber' && (
+          <a
+            href="/purchases"
+            className="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
+          >
+            View My Purchases
+          </a>
+        )}
       </div>
 
+      {/* New Post Form (for creators only) */}
+      {user?.role === 'creator' && (
+        <NewPostForm onPostCreated={(newPost) => setPosts((prev) => [newPost, ...prev])} />
+      )}
+
+      {/* Posts List */}
       {posts.length === 0 ? (
         <p>You haven’t posted anything yet.</p>
       ) : (
         posts.map((post) => (
-          <div key={post.id} className="bg-gray-800 text-white p-4 rounded mb-4">
-            <h2 className="text-xl font-semibold">{post.title}</h2>
+          <div key={post.id} className="bg-gray-800 text-white p-4 rounded mb-4 shadow-md">
+            <h2 className="text-lg sm:text-xl font-semibold mb-1">{post.title}</h2>
             <p className="text-sm text-gray-300 mb-2">${post.price}</p>
             <p className="text-gray-400 mb-2">{post.content}</p>
 
@@ -169,9 +177,9 @@ export default function DashboardPage() {
               <div className="flex flex-wrap gap-4 mt-2">
                 {post.media_urls.map((url, index) =>
                   url.endsWith('.mp4') ? (
-                    <video key={index} src={url} controls className="w-40 rounded border" />
+                    <video key={index} src={url} controls className="w-36 sm:w-40 rounded border" />
                   ) : (
-                    <img key={index} src={url} alt={`media-${index}`} className="w-40 rounded border" />
+                    <img key={index} src={url} alt={`media-${index}`} className="w-36 sm:w-40 rounded border" />
                   )
                 )}
               </div>

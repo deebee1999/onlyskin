@@ -1,102 +1,98 @@
 'use client';
+
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('creator');
+  const router = useRouter();
 
-  const handleSignup = async (e) => {
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'subscriber', // Default to subscriber
+  });
+  const [error, setError] = useState('');
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
 
     try {
       const res = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password, role }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       });
 
       const data = await res.json();
-      console.log(data);
+      if (!res.ok) throw new Error(data.error || 'Signup failed');
 
-      if (res.ok) {
-        alert('Signup successful!');
-        window.location.href = '/login';
-      } else {
-        alert(data.error || 'Signup failed');
-      }
+      localStorage.setItem('token', data.token);
+      router.push('/dashboard'); // redirect after signup
     } catch (err) {
-      console.error('Signup error:', err);
-      alert('Signup error');
+      setError(err.message);
     }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black flex flex-col justify-center items-center p-8 text-white">
-      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-pink-500 drop-shadow-lg">Join OnlySkins</h1>
-      
-      <form
-        onSubmit={handleSignup}
-        className="bg-gray-800 bg-opacity-80 p-8 rounded-lg shadow-xl max-w-sm w-full space-y-6"
-      >
+    <main className="max-w-md mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Sign Up</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p className="text-red-500">{error}</p>}
+
         <input
           type="text"
+          name="username"
           placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          value={form.username}
+          onChange={handleChange}
           required
-          className="w-full px-4 py-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
+          className="w-full p-2 rounded border"
         />
+
         <input
           type="email"
+          name="email"
           placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={form.email}
+          onChange={handleChange}
           required
-          className="w-full px-4 py-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
+          className="w-full p-2 rounded border"
         />
+
         <input
           type="password"
+          name="password"
           placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={form.password}
+          onChange={handleChange}
           required
-          className="w-full px-4 py-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
+          className="w-full p-2 rounded border"
         />
+
+        {/* NEW: Role Dropdown */}
         <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full px-4 py-3 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+          name="role"
+          value={form.role}
+          onChange={handleChange}
+          className="w-full p-2 rounded border"
         >
-          <option value="creator">Creator</option>
           <option value="subscriber">Subscriber</option>
+          <option value="creator">Creator</option>
         </select>
+
         <button
           type="submit"
-          className="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 rounded transition duration-300"
+          className="w-full bg-pink-600 hover:bg-pink-700 text-white p-2 rounded"
         >
           Sign Up
         </button>
       </form>
-
-      <p className="text-gray-400 mt-6">
-        Already have an account?{' '}
-        <Link href="/login" className="text-pink-400 hover:text-pink-500 font-semibold">
-          Login
-        </Link>
-      </p>
-
-      <p className="text-gray-400 text-sm text-center mt-4 max-w-sm">
-        By signing up you confirm that you are{' '}
-        <span className="font-semibold text-pink-400">18 years of age or older</span> and agree to our{' '}
-        <Link href="/legal/terms" className="text-pink-400 hover:text-pink-500 underline">Terms of Service</Link>,{' '}
-        <Link href="/legal/privacy" className="text-pink-400 hover:text-pink-500 underline">Privacy Policy</Link>, and{' '}
-        <Link href="/legal/dmca" className="text-pink-400 hover:text-pink-500 underline">DMCA</Link>.
-      </p>
     </main>
   );
 }

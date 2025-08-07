@@ -30,6 +30,8 @@ app.use((req, res, next) => {
 
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+console.log('🛠 Serving static files from:', path.join(__dirname, 'uploads'));
+
 
 // ✅ Route Imports
 const authRoutes = require('./routes/auth');

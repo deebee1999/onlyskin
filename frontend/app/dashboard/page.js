@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
+import { useAuth } from '../context/AuthContext'; // ✅ valid relative import
 import NewPostForm from './NewPostForm';
 
-
 export default function DashboardPage() {
+  const { user } = useAuth(); // ✅ Get user from context
   const [posts, setPosts] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -15,6 +15,13 @@ export default function DashboardPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  // ✅ Protect route before rendering if not a creator
+  useEffect(() => {
+    if (user && user.role !== 'creator') {
+      window.location.href = '/';
+    }
+  }, [user]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -23,7 +30,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // Fetch posts
     fetch('http://localhost:5000/api/posts/dashboard/', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -44,7 +50,6 @@ export default function DashboardPage() {
         setLoading(false);
       });
 
-    // Fetch follower stats
     fetch('http://localhost:5000/api/user/stats', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -57,7 +62,6 @@ export default function DashboardPage() {
         console.error('Failed to load follower stats:', err.message);
       });
 
-    // Notifications polling
     const fetchNotifications = () => {
       fetch('http://localhost:5000/api/notifications', {
         headers: { Authorization: `Bearer ${token}` },
@@ -87,12 +91,17 @@ export default function DashboardPage() {
     });
   };
 
+  // ✅ If user hasn't loaded yet
+  if (!user) return <p className="p-4">Loading...</p>;
+
+  // ✅ If user is not a creator (prevent double render)
+  if (user.role !== 'creator') return null;
+
   if (loading) return <p className="p-4">Loading...</p>;
   if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
     <main className="p-4 sm:p-6 md:p-8 relative min-h-screen bg-black text-white">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold">Your Dashboard</h1>
 
@@ -118,7 +127,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Notifications Dropdown */}
       {showNotifications && (
         <div className="absolute right-4 sm:right-8 top-28 sm:top-24 bg-zinc-800 w-full sm:w-80 p-4 rounded shadow-lg z-50">
           <h3 className="text-lg font-bold mb-2">Notifications</h3>
@@ -138,22 +146,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Stats and Purchases */}
       <div className="mb-6 space-y-2 text-sm sm:text-base">
         <div className="text-gray-300">
           👥 Followers: <strong>{followers}</strong> <br />
           ➡️ Following: <strong>{following}</strong>
         </div>
-
-        <a
-          href="/purchases"
-          className="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
-        >
-          View My Purchases
-        </a>
       </div>
 
-      {/* Posts */}
       <NewPostForm onPostCreated={(newPost) => setPosts((prev) => [newPost, ...prev])} />
 
       {posts.length === 0 ? (
@@ -170,7 +169,6 @@ export default function DashboardPage() {
                 {post.media_urls.map((url, index) =>
                   url.endsWith('.mp4') ? (
                     <video key={index} src={url} controls className="w-36 sm:w-40 rounded border" />
-
                   ) : (
                     <img key={index} src={url} alt={`media-${index}`} className="w-36 sm:w-40 rounded border" />
                   )
