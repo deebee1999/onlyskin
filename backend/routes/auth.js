@@ -56,9 +56,20 @@ router.post('/signup', async (req, res) => {
 // POST /api/auth/login
 // =========================
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body; 
+  console.log('🔍 Login attempt with identifier:', identifier);
+
+
   try {
-    const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+const userRes = await pool.query(
+  `SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)`,
+  [identifier]
+);
+
+
+console.log('🔎 DB result:', userRes.rows);
+
+
     if (userRes.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
 
     const user = userRes.rows[0];

@@ -51,11 +51,10 @@ router.post('/avatar', authMiddleware, avatarUpload.single('avatar'), async (req
   const avatarPath = `/uploads/${req.file.filename}`;
 
   try {
-  await db.query(
-  'UPDATE users SET avatar_url = $1 WHERE id = $2',
-  [avatarPath, req.user.id]
-);
-
+    await db.query(
+      'UPDATE users SET avatar = $1 WHERE id = $2',
+      [avatarPath, req.user.id]
+    );
     res.json({ message: 'Avatar uploaded successfully', avatar: avatarPath });
   } catch (err) {
     console.error('Upload avatar error:', err);

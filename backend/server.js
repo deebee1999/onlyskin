@@ -53,7 +53,6 @@ const stripeRoutes = require('./routes/stripe');
 
 
 // ✅ Route Usage
-
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/follow', require('./routes/follow'));
 app.use('/api/user', userRoutes);  
@@ -61,6 +60,7 @@ app.use('/api/purchases', purchasesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postsRoutes);
+app.use('/api/search', require('./routes/search'));
 app.use('/api/creator', creatorRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/notifications', notificationsRoutes);

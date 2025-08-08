@@ -3,58 +3,96 @@ const router = express.Router();
 const pool = require('../db');
 const authMiddleware = require('../middleware/auth');
 
-// ✅ GET /api/user/stats
-router.get('/stats', authMiddleware, async (req, res) => {
-  const userId = req.user.id;
+// ✅ Existing routes here...
 
+// ✅ Add your /profile route HERE, below the other routes
+router.get('/profile', authMiddleware, async (req, res) => {
   try {
-    const followerRes = await pool.query(
-      'SELECT COUNT(*) FROM followers WHERE user_id = $1',
+    const userId = req.user.id;
+    console.log('🔍 Looking up user ID:', userId);
+
+    const result = await pool.query(
+      'SELECT id, username, email, role FROM users WHERE id = $1',
       [userId]
     );
-    const followingRes = await pool.query(
-      'SELECT COUNT(*) FROM followers WHERE follower_id = $1',
-      [userId]
-    );
 
-    res.json({
-      followers: parseInt(followerRes.rows[0].count, 10),
-      following: parseInt(followingRes.rows[0].count, 10)
-    });
-  } catch (err) {
-    console.error('Error fetching user stats:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ✅ GET /api/user/:username/follow-status
-router.get('/:username/follow-status', authMiddleware, async (req, res) => {
-  const viewerId = req.user.id;
-  const { username } = req.params;
-
-  try {
-    const userRes = await pool.query(
-      'SELECT id FROM users WHERE username ILIKE $1',
-      [username]
-    );
-
-    if (userRes.rows.length === 0) {
+    if (result.rows.length === 0) {
+      console.log('❌ No user found for ID:', userId);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const targetId = userRes.rows[0].id;
-
-    const followRes = await pool.query(
-  'SELECT 1 FROM followers WHERE follower_id = $1 AND user_id = $2',
-  [viewerId, targetId]
-);
-
-
-    res.json({ following: followRes.rows.length > 0 });
+    console.log('✅ PROFILE RESULT:', result.rows[0]);
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error('Follow status error:', err);
+    console.error('🚨 Error in /profile route:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// =========================
+// GET /api/user/:username
+// =========================
+router.get('/:username', authMiddleware, async (req, res) => {
+  const { username } = req.params;
+
+  try {
+    const result = await pool.query(
+      'SELECT id, username, email, role, bio FROM users WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching user by username:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// =========================
+// PUT /api/user/update-bio
+// =========================
+router.put('/update-bio', authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const { bio } = req.body;
+
+  try {
+    await pool.query(
+      'UPDATE users SET bio = $1 WHERE id = $2',
+      [bio, userId]
+    );
+
+    res.json({ message: 'Bio updated successfully' });
+  } catch (err) {
+    console.error('Error updating bio:', err);
+    res.status(500).json({ error: 'Failed to update bio' });
+  }
+});
+
+// =========================
+// PUT /api/user/update-bio
+// =========================
+router.put('/update-bio', authMiddleware, async (req, res) => {
+  const { bio } = req.body;
+
+  try {
+    const result = await pool.query(
+      'UPDATE users SET bio = $1 WHERE id = $2 RETURNING bio',
+      [bio, req.user.id]
+    );
+
+    res.json({ bio: result.rows[0].bio });
+  } catch (err) {
+    console.error('❌ Failed to update bio:', err);
+    res.status(500).json({ error: 'Failed to update bio' });
+  }
+});
+
+
+
+
+// ✅ This must be at the bottom:
 module.exports = router;
