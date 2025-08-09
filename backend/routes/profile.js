@@ -1,64 +1,53 @@
+// backend/routes/profile.js
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
-const auth = require('../middleware/auth');
+const pool = require('../db');
+const authMiddleware = require('../middleware/auth');
 
-// ==============================
-// GET current user profile
-// ==============================
-router.get('/', auth, async (req, res) => {
-  const userId = req.user.id;
+/* ============================================================================
+   GET /api/profile/self            → current user (via JWT)
+   GET /api/profile/:username       → user by username (case-insensitive)
+   Returns: { user: { id, username, email, role, bio, avatar_url } }
+   ========================================================================== */
 
+router.get('/self', authMiddleware, async (req, res) => {
   try {
-    const { rows } = await db.query(
-      'SELECT id, username, email, avatar_url, bio, banner_url FROM users WHERE id = $1',
-      [userId]
+    const q = await pool.query(
+      `SELECT id, username, email, role, bio, avatar_url
+         FROM users
+        WHERE id = $1
+        LIMIT 1`,
+      [req.user.id]
     );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(rows[0]);
+    if (q.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    return res.json({ user: q.rows[0] });
   } catch (err) {
-    console.error('❌ Profile fetch error:', err);
-    res.status(500).json({ error: 'Unable to fetch profile' });
+    console.error('GET /api/profile/self error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ==============================
-// PUT update user profile
-// ==============================
-router.put('/', auth, async (req, res) => {
-  const userId = req.user.id;
-  const { bio = '', avatar_url = '', banner_url = '' } = req.body;
-
-  console.log('🔧 PUT /api/profile');
-  console.log('👤 userId:', userId);
-  console.log('📥 Incoming data:', { bio, avatar_url, banner_url });
-
-  if (
-    typeof bio !== 'string' ||
-    typeof avatar_url !== 'string' ||
-    typeof banner_url !== 'string'
-  ) {
-    console.warn('⚠️ Invalid input types:', req.body);
-    return res.status(400).json({ error: 'Invalid input types' });
-  }
-
+router.get('/:username', authMiddleware, async (req, res) => {
   try {
-    const { rows } = await db.query(
-      `UPDATE users
-       SET bio = $1, avatar_url = $2, banner_url = $3
-       WHERE id = $4
-       RETURNING id, username, email, avatar_url, bio, banner_url`,
-      [bio, avatar_url, banner_url, userId]
+    const { username } = req.params;
+    if (!username) return res.status(400).json({ error: 'Username required' });
+
+    const q = await pool.query(
+      `SELECT id, username, email, role, bio, avatar_url
+         FROM users
+        WHERE LOWER(username) = LOWER($1)
+        LIMIT 1`,
+      [username]
     );
 
-    res.json(rows[0]);
+    if (q.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ user: q.rows[0] });
   } catch (err) {
-    console.error('❌ Profile update error:', err);
-    res.status(500).json({ error: 'Unable to update profile' });
+    console.error('GET /api/profile/:username error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
