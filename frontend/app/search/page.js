@@ -1,92 +1,232 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+/* =============================================================================
+   OnlySkins — Search Page (Routes all results to /dashboard)
+   - Clicking any result navigates to /dashboard
+   - Follow/Unfollow updates row state and dashboard #s11 (Following)
+   ========================================================================== */
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useAuth } from '../context/AuthContext';
+
+function classNames(...parts) {
+  return parts.filter(Boolean).join(' ');
+}
+
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('');
+  const router = useRouter();
+  const { token, user } = useAuth();
+
+  const [q, setQ] = useState('');
+  const debouncedQ = useDebouncedValue(q, 400);
+
+  const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem('token');
-    if (!token) return alert('Please log in');
+  const canSearch = useMemo(() => debouncedQ.trim().length > 0, [debouncedQ]);
 
-    setSearching(true);
-    setError('');
-    setResults([]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      setError('');
+      if (!canSearch) {
+        setResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(debouncedQ)}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || `Search failed with ${res.status}`);
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          const normalized = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.results)
+              ? data.results
+              : [];
+          setResults(
+            normalized.map((u) => ({
+              id: u.id,
+              username: u.username,
+              role: u.role,
+              avatar_url: u.avatar_url || u.avatar || null,
+              is_following:
+                typeof u.is_following === 'boolean'
+                  ? u.is_following
+                  : !!u.following,
+            })),
+          );
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Search failed');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQ, canSearch, token]);
+
+  // Follow / Unfollow using backend truth; update dashboard #s11 with viewer "following"
+  async function handleFollowToggle(e, username, index) {
+    e.stopPropagation();
+    if (!token) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/search/users?q=${query}`, {
+      const res = await fetch('/api/follow/toggle', {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
+        console.error('Follow toggle failed:', data?.error || res.statusText);
+        return;
       }
 
-      const data = await res.json();
-      setResults(data.users || []);
+      setResults((prev) => {
+        const copy = [...prev];
+        if (copy[index]) copy[index] = { ...copy[index], is_following: !!data.following };
+        return copy;
+      });
+
+      // ✅ Update #s11 with the viewer's FOLLOWING count
+      if (typeof document !== 'undefined') {
+        const el = document.getElementById('s11');
+        if (el && typeof data.following === 'number') {
+          el.textContent = String(data.following);
+        }
+      }
     } catch (err) {
-      console.error('Search failed:', err.message);
-      setError('Search failed');
-    } finally {
-      setSearching(false);
+      console.error('Follow toggle error:', err);
     }
-  };
+  }
+
+  function handleRowClick() {
+    router.push('/dashboard');
+  }
 
   return (
-    <main className="max-w-xl mx-auto p-6 sm:p-8">
-      <h1 className="text-2xl font-bold mb-4">Search Users</h1>
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-black text-white px-6 py-4 flex items-center justify-between shadow">
+        <Link href="/" className="text-xl font-bold text-pink-500">
+          OnlySkins
+        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard" className="hover:underline">
+            Dashboard
+          </Link>
+          <Link href="/purchases" className="hover:underline">
+            Purchases
+          </Link>
+          <Link href="/notifications" className="hover:underline">
+            Notifications
+          </Link>
+          {user?.username && (
+            <Link href={`/profile/${user.username}`} className="hover:underline">
+              Profile
+            </Link>
+          )}
+        </div>
+      </nav>
 
-      <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold mb-4">Search</h1>
         <input
           type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Enter username"
-          className="w-full p-3 bg-gray-800 text-white rounded"
-          required
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search users by username…"
+          className="w-full rounded-xl border px-4 py-3 outline-none focus:ring focus:ring-pink-200"
         />
-        <button
-          type="submit"
-          disabled={searching}
-          className="bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded w-full sm:w-auto"
-        >
-          {searching ? 'Searching...' : 'Search'}
-        </button>
-      </form>
 
-      {error && <p className="text-red-400 mb-4">{error}</p>}
+        <div className="mt-4 text-sm">
+          {loading && <span>Searching…</span>}
+          {!loading && error && <span className="text-red-600">Error: {error}</span>}
+          {!loading && !error && canSearch && results.length === 0 && (
+            <span>No results.</span>
+          )}
+        </div>
 
-      {results.length === 0 && !searching ? (
-        <p className="text-gray-400">No users found.</p>
-      ) : (
-        <ul className="space-y-4">
-          {results.map((user) => (
-            <li
-              key={user.id}
-              className="bg-gray-800 p-4 rounded-lg flex items-center justify-between"
+        <div className="mt-6 space-y-2">
+          {results.map((u, idx) => (
+            <div
+              key={u.id ?? `${u.username}-${idx}`}
+              onClick={handleRowClick}
+              className={classNames(
+                'flex items-center justify-between rounded-xl border bg-white px-4 py-3 cursor-pointer',
+                'hover:shadow transition-shadow',
+              )}
             >
-              <div>
-                <p className="font-bold text-white">@{user.username}</p>
-                {user.bio && <p className="text-sm text-gray-400">{user.bio}</p>}
+              <div className="flex items-center gap-3">
+                <div className="relative h-10 w-10 rounded-full overflow-hidden bg-gray-200">
+                  {u.avatar_url ? (
+                    <Image
+                      src={u.avatar_url}
+                      alt={`${u.username} avatar`}
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-gray-500 text-xs">
+                      N/A
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium">@{u.username}</div>
+                  <div className="text-xs text-gray-500">
+                    {u.role === 'creator' ? 'Creator' : 'Subscriber'}
+                  </div>
+                </div>
               </div>
-              <Link
-                href={`/creator/${user.username}`}
-                className="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded text-sm"
+
+              <button
+                onClick={(e) => handleFollowToggle(e, u.username, idx)}
+                className={classNames(
+                  'rounded-full px-4 py-2 text-sm border',
+                  u.is_following
+                    ? 'bg-gray-100 hover:bg-gray-200'
+                    : 'bg-pink-500 text-white hover:bg-pink-600 border-pink-500',
+                )}
               >
-                View
-              </Link>
-            </li>
+                {u.is_following ? 'Following' : 'Follow'}
+              </button>
+            </div>
           ))}
-        </ul>
-      )}
-    </main>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -8,38 +8,42 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [failCount, setFailCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setErrorMsg('');
 
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
+  console.log('➡️ Submitting login with:', { identifier, password }); // ✅ DEBUG LOG
 
-      if (!res.ok) {
-        setFailCount((prev) => prev + 1);
-        return setErrorMsg(data.error || 'Login failed');
-      }
+  try {
+    const res = await fetch('http://localhost:5000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: identifier.trim(),
+        password,
+      }),
+    });
 
-      // Save token + user in context
-      login(data.token, data.user);
+    const data = await res.json();
 
-      // Redirect to profile page after login
-      router.push('/profile');
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Login error');
+    if (!res.ok) {
+      setFailCount((prev) => prev + 1);
+      return setErrorMsg(data.error || 'Login failed');
     }
-  };
+
+    login(data.token, data.user);
+    router.push('/profile');
+  } catch (err) {
+    console.error(err);
+    setErrorMsg('Login error');
+  }
+};
+
 
   return (
     <main className="min-h-screen bg-black text-white p-8 flex flex-col items-center">
@@ -47,10 +51,10 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
+          type="text"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          placeholder="Username or Email"
           className="w-full p-2 rounded bg-gray-700 text-white"
           required
         />

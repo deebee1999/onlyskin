@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // ✅ valid relative import
+import Link from 'next/link';
+import { useAuth } from '../context/AuthContext';
 import NewPostForm from './NewPostForm';
 
 export default function DashboardPage() {
-  const { user } = useAuth(); // ✅ Get user from context
+  const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -15,10 +16,9 @@ export default function DashboardPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // ✅ Protect route before rendering if not a creator
   useEffect(() => {
-    if (user && user.role !== 'creator') {
-      window.location.href = '/';
+    if (!user) {
+      window.location.href = '/login';
     }
   }, [user]);
 
@@ -55,8 +55,14 @@ export default function DashboardPage() {
     })
       .then((res) => res.json())
       .then((data) => {
-        setFollowers(data.followers || 0);
-        setFollowing(data.following || 0);
+        const fwers = Number(data.followers || 0);
+        const fwing = Number(data.following || 0);
+        setFollowers(fwers);
+        setFollowing(fwing);
+
+        // Keep #s11 (Following) in sync so other pages can update it too
+        const el = document.getElementById('s11');
+        if (el) el.textContent = String(fwing);
       })
       .catch((err) => {
         console.error('Failed to load follower stats:', err.message);
@@ -91,11 +97,83 @@ export default function DashboardPage() {
     });
   };
 
-  // ✅ If user hasn't loaded yet
   if (!user) return <p className="p-4">Loading...</p>;
 
-  // ✅ If user is not a creator (prevent double render)
-  if (user.role !== 'creator') return null;
+  if (user.role === 'subscriber') {
+    return (
+      <main className="p-4 sm:p-6 md:p-8 min-h-screen bg-black text-white">
+        <h1 className="text-2xl font-bold mb-4 text-pink-500">
+          Welcome, {user.username}
+        </h1>
+        <p className="mb-4">Thanks for supporting creators on OnlySkins!</p>
+
+        <div className="space-y-4 sm:space-y-2">
+          <a
+            href="/purchases"
+            className="block bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded"
+          >
+            🛒 View Your Purchases
+          </a>
+
+          <button
+            onClick={handleNotificationsClick}
+            className="block w-full text-left bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded"
+          >
+            🔔 Notifications
+            {unreadCount > 0 && (
+              <span className="ml-2 bg-pink-600 text-xs rounded-full px-2 py-0.5">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          <a
+            href="#"
+            className="block bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded"
+          >
+            ✉️ Messages (Coming Soon)
+          </a>
+
+          <div className="text-sm text-gray-300 mt-2">
+            👥 Followers: <strong>{followers}</strong><br />
+            ➡️ Following: <strong id="s11">{following}</strong>
+          </div>
+
+          <a
+            href="#"
+            className="block bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded"
+          >
+            💳 Add Payment Method (Coming Soon)
+          </a>
+        </div>
+
+        {showNotifications && (
+          <div className="mt-6 bg-zinc-800 p-4 rounded shadow">
+            <h3 className="text-lg font-bold mb-2">Notifications</h3>
+            {notifications.length === 0 ? (
+              <p className="text-sm text-gray-400">No notifications yet</p>
+            ) : (
+              <ul className="space-y-2 max-h-64 overflow-y-auto">
+                {notifications.map((n) => (
+                  <li key={n.id} className="border-b border-zinc-700 pb-2">
+                    {n.type === 'follow' && (
+                      <p className="text-sm">🎉 You followed someone!</p>
+                    )}
+                    {n.type === 'unlock' && (
+                      <p className="text-sm">💰 You unlocked post #{n.metadata?.post_id}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(n.created_at).toLocaleString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </main>
+    );
+  }
 
   if (loading) return <p className="p-4">Loading...</p>;
   if (error) return <p className="text-red-500 p-4">{error}</p>;
@@ -118,12 +196,12 @@ export default function DashboardPage() {
             )}
           </button>
 
-          <button
+          <Link
+            href="/dashboard/create"
             className="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-4 rounded text-sm sm:text-base"
-            onClick={() => window.location.href = '/create-post'}
           >
             + New Post
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -138,7 +216,9 @@ export default function DashboardPage() {
                 <li key={n.id} className="border-b border-zinc-700 pb-2">
                   {n.type === 'follow' && <p className="text-sm">🎉 Someone followed you!</p>}
                   {n.type === 'unlock' && <p className="text-sm">💰 Someone unlocked post #{n.metadata?.post_id}</p>}
-                  <p className="text-xs text-gray-500 mt-1">{new Date(n.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(n.created_at).toLocaleString()}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -149,11 +229,9 @@ export default function DashboardPage() {
       <div className="mb-6 space-y-2 text-sm sm:text-base">
         <div className="text-gray-300">
           👥 Followers: <strong>{followers}</strong> <br />
-          ➡️ Following: <strong>{following}</strong>
+          ➡️ Following: <strong id="s11">{following}</strong>
         </div>
       </div>
-
-      <NewPostForm onPostCreated={(newPost) => setPosts((prev) => [newPost, ...prev])} />
 
       {posts.length === 0 ? (
         <p>You haven’t posted anything yet.</p>

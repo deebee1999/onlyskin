@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
 
     setToken(storedToken);
 
-    fetch('http://localhost:5000/api/profile', {
+    fetch('http://localhost:5000/api/user/profile', { //added user/
       headers: { Authorization: `Bearer ${storedToken}` },
     })
       .then((res) => (res.ok ? res.json() : null))
