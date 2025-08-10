@@ -9,6 +9,34 @@ const authMiddleware = require('../middleware/auth');
    PUT /api/user/bio         → update bio for the authenticated user
    ========================================================================== */
 
+/* GET /api/user/stats -> { followers, following } */
+router.get('/stats', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // people who follow me
+    const followersRes = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM followers WHERE user_id = $1',
+      [userId]
+    );
+
+    // people I follow
+    const followingRes = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM followers WHERE follower_id = $1',
+      [userId]
+    );
+
+    res.json({
+      followers: followersRes.rows[0].c,
+      following: followingRes.rows[0].c,
+    });
+  } catch (err) {
+    console.error('GET /api/user/stats error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 /* GET /api/user/:username */
 router.get('/:username', authMiddleware, async (req, res) => {
   try {
@@ -55,5 +83,8 @@ router.put('/bio', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 });
+
+
+
 
 module.exports = router;

@@ -140,4 +140,34 @@ async function getCounts(targetUserId, viewerId) {
   };
 }
 
+// GET /api/follow/status/:username  -> { following: boolean }
+router.get('/status/:username', authMiddleware, async (req, res) => {
+  try {
+    const viewerId = req.user.id;
+    const { username } = req.params;
+
+    // find target user
+    const target = await pool.query(
+      'SELECT id FROM users WHERE LOWER(username)=LOWER($1) LIMIT 1',
+      [username]
+    );
+    if (target.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const targetId = target.rows[0].id;
+
+    // do I (viewer) follow target?
+    const exists = await pool.query(
+      'SELECT 1 FROM followers WHERE follower_id=$1 AND user_id=$2 LIMIT 1',
+      [viewerId, targetId]
+    );
+
+    return res.json({ following: exists.rows.length > 0 });
+  } catch (err) {
+    console.error('GET /api/follow/status error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;
