@@ -37,7 +37,7 @@ const handleSubmit = async (e) => {
     }
 
     login(data.token, data.user);
-    router.push('/profile');
+    router.push('/dashboard');
   } catch (err) {
     console.error(err);
     setErrorMsg('Login error');

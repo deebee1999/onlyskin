@@ -1,9 +1,9 @@
 'use client';
 
 /* =============================================================================
-   OnlySkins — Search Page (Routes all results to /dashboard)
-   - Clicking any result navigates to /dashboard
-   - Follow/Unfollow updates row state and dashboard #s11 (Following)
+   OnlySkins — Search Page
+   - Clicking any result navigates to /dashboard (shared for creators/subscribers)
+   - Follow/Unfollow updates row state and writes counts to localStorage
    ========================================================================== */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -33,7 +33,7 @@ export default function SearchPage() {
   const debouncedQ = useDebouncedValue(q, 400);
 
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState([]); // [{ id, username, role, avatar_url, is_following }]
   const [error, setError] = useState('');
 
   const canSearch = useMemo(() => debouncedQ.trim().length > 0, [debouncedQ]);
@@ -93,7 +93,7 @@ export default function SearchPage() {
     };
   }, [debouncedQ, canSearch, token]);
 
-  // Follow / Unfollow using backend truth; update dashboard #s11 with viewer "following"
+  // Follow / Unfollow using backend truth; cache counts in localStorage
   async function handleFollowToggle(e, username, index) {
     e.stopPropagation();
     if (!token) return;
@@ -120,13 +120,17 @@ export default function SearchPage() {
         return copy;
       });
 
-      // ✅ Update #s11 with the viewer's FOLLOWING count
-      if (typeof document !== 'undefined') {
-        const el = document.getElementById('s11');
-        if (el && typeof data.following === 'number') {
-          el.textContent = String(data.following);
-        }
-      }
+      // ✅ Persist counts for Dashboard to read on mount
+      try {
+        localStorage.setItem(
+          'onlyskins:follow-changed',
+          JSON.stringify({
+            followers: data.followers,   // target's followers
+            following: data.following,   // viewer's following
+            ts: Date.now(),
+          })
+        );
+      } catch {}
     } catch (err) {
       console.error('Follow toggle error:', err);
     }
@@ -138,6 +142,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Top Bar */}
       <nav className="bg-black text-white px-6 py-4 flex items-center justify-between shadow">
         <Link href="/" className="text-xl font-bold text-pink-500">
           OnlySkins
@@ -160,6 +165,7 @@ export default function SearchPage() {
         </div>
       </nav>
 
+      {/* Search */}
       <div className="max-w-3xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-semibold mb-4">Search</h1>
         <input
@@ -170,6 +176,7 @@ export default function SearchPage() {
           className="w-full rounded-xl border px-4 py-3 outline-none focus:ring focus:ring-pink-200"
         />
 
+      {/* Status */}
         <div className="mt-4 text-sm">
           {loading && <span>Searching…</span>}
           {!loading && error && <span className="text-red-600">Error: {error}</span>}
@@ -178,6 +185,7 @@ export default function SearchPage() {
           )}
         </div>
 
+        {/* Results */}
         <div className="mt-6 space-y-2">
           {results.map((u, idx) => (
             <div

@@ -30,56 +30,48 @@ export default function DashboardPage() {
       return;
     }
 
+    // Posts
     fetch('http://localhost:5000/api/posts/dashboard/', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
         if (!res.ok) {
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `HTTP ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
-        setPosts(data);
+        setPosts(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error('Dashboard fetch error:', err.message);
+      .catch(() => {
         setError('Failed to load your posts');
         setLoading(false);
       });
 
+    // Counts
     fetch('http://localhost:5000/api/user/stats', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
-        const fwers = Number(data.followers || 0);
-        const fwing = Number(data.following || 0);
-        setFollowers(fwers);
-        setFollowing(fwing);
-
-        // Keep #s11 (Following) in sync so other pages can update it too
-        const el = document.getElementById('s11');
-        if (el) el.textContent = String(fwing);
+        setFollowers(Number(data.followers || 0));
+        setFollowing(Number(data.following || 0));
       })
-      .catch((err) => {
-        console.error('Failed to load follower stats:', err.message);
-      });
+      .catch(() => {});
 
+    // Notifications
     const fetchNotifications = () => {
       fetch('http://localhost:5000/api/notifications', {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())
         .then((data) => {
-          setNotifications(data);
-          setUnreadCount(data.filter((n) => !n.is_read).length);
+          setNotifications(Array.isArray(data) ? data : []);
+          setUnreadCount((Array.isArray(data) ? data : []).filter((n) => !n.is_read).length);
         })
-        .catch((err) => {
-          console.error('Notification fetch error:', err);
-        });
+        .catch(() => {});
     };
 
     fetchNotifications();
@@ -88,17 +80,19 @@ export default function DashboardPage() {
   }, []);
 
   const handleNotificationsClick = () => {
-    setShowNotifications(!showNotifications);
+    setShowNotifications((s) => !s);
     setUnreadCount(0);
-
     fetch('http://localhost:5000/api/notifications/read-all', {
       method: 'PUT',
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    });
+    }).catch(() => {});
   };
 
   if (!user) return <p className="p-4">Loading...</p>;
 
+  // =====================
+  // Subscriber Dashboard
+  // =====================
   if (user.role === 'subscriber') {
     return (
       <main className="p-4 sm:p-6 md:p-8 min-h-screen bg-black text-white">
@@ -134,10 +128,17 @@ export default function DashboardPage() {
             ✉️ Messages (Coming Soon)
           </a>
 
-          <div className="text-sm text-gray-300 mt-2">
-            👥 Followers: <strong>{followers}</strong><br />
-            ➡️ Following: <strong id="s11">{following}</strong>
-          </div>
+          {/* Clickable counters (subscriber) */}
+       <div className="text-sm text-gray-300 mt-2">
+  👥 <Link href={`/followers/${user.username}`} className="text-pink-400 hover:underline">
+    Followers: <strong>{followers}</strong>
+  </Link>
+  <br />
+  ➡️ <Link href={`/following/${user.username}`} className="text-pink-400 hover:underline">
+    Following: <strong>{following}</strong>
+  </Link>
+</div>
+
 
           <a
             href="#"
@@ -175,6 +176,9 @@ export default function DashboardPage() {
     );
   }
 
+  // =====================
+  // Creator Dashboard
+  // =====================
   if (loading) return <p className="p-4">Loading...</p>;
   if (error) return <p className="text-red-500 p-4">{error}</p>;
 
@@ -183,7 +187,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold">Your Dashboard</h1>
 
-        <div className="flex gap-2 sm:gap-4 flex-wrap">
+      <div className="flex gap-2 sm:gap-4 flex-wrap">
           <button
             onClick={handleNotificationsClick}
             className="relative bg-zinc-700 px-3 py-1.5 rounded hover:bg-zinc-600 text-sm sm:text-base"
@@ -226,12 +230,17 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="mb-6 space-y-2 text-sm sm:text-base">
-        <div className="text-gray-300">
-          👥 Followers: <strong>{followers}</strong> <br />
-          ➡️ Following: <strong id="s11">{following}</strong>
-        </div>
-      </div>
+      {/* Clickable counters (creator) */}
+   <div className="text-gray-300">
+  👥 <Link href={`/followers/${user.username}`} className="text-pink-400 hover:underline">
+    Followers: <strong>{followers}</strong>
+  </Link>
+  <br />
+  ➡️ <Link href={`/following/${user.username}`} className="text-pink-400 hover:underline">
+    Following: <strong>{following}</strong>
+  </Link>
+</div>
+
 
       {posts.length === 0 ? (
         <p>You haven’t posted anything yet.</p>
