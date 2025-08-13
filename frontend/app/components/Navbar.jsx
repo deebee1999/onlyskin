@@ -80,7 +80,7 @@ export default function Navbar() {
             <Link href="/purchases" className="hover:text-pink-400">
               Purchases
             </Link>
-            <Link href={`/profile/${user.username}`} className="hover:text-pink-400">
+            <Link href={`/subscriber/${user.username}`} className="hover:text-pink-400">
               Profile
             </Link>
             <button

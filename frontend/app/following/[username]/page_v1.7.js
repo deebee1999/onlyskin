@@ -1,59 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-
-/* ===== Helpers: decode viewer from JWT (localStorage) ===== */
-function decodeViewer() {
-  try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) return { username: null };
-    const [, payload] = token.split('.');
-    if (!payload) return { username: null };
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    const username =
-      json?.username ?? json?.user?.username ?? json?.name ?? json?.preferred_username ?? null;
-    return { username };
-  } catch {
-    return { username: null };
-  }
-}
-
-/* ===== Profile API (same as profile pages) ===== */
-async function getProfile(username) {
-  const res = await fetch(`/api/profile/${encodeURIComponent(username)}`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json();
-}
-
-async function updateBio(username, bio) {
-  const res = await fetch(`/api/profile/${encodeURIComponent(username)}/bio`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
-    },
-    body: JSON.stringify({ bio }),
-  });
-  if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
-  return res.json();
-}
-
-/* ===== Theme knobs (colors/text classes you can tweak) ===== */
-const THEME = {
-  boxBg: 'bg-gray-300',
-  boxBorder: 'border-gray-400',
-  titleText: 'text-black font-semibold',
-  bodyText: 'text-black',
-  editBtn: 'border-gray-500 text-black hover:bg-gray-200',
-  saveBtn: 'bg-black text-white hover:opacity-90',
-  cancelBtn: 'border-gray-500 text-black hover:bg-gray-200',
-  textarea: 'border-gray-500 text-black',
-};
 
 export default function FollowingPage() {
   const params = useParams();
@@ -83,19 +32,6 @@ export default function FollowingPage() {
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-  /* ====== Self-only bio edit state (for the page owner) ====== */
-  const viewer = useMemo(() => decodeViewer(), []);
-  const isSelf = useMemo(() => {
-    if (!viewer?.username || !routeUsername) return false;
-    return String(viewer.username).toLowerCase() === String(routeUsername).toLowerCase();
-  }, [viewer?.username, routeUsername]);
-
-  const [profile, setProfile] = useState(null);
-  const [bioEditing, setBioEditing] = useState(false);
-  const [bioDraft, setBioDraft] = useState('');
-  const [bioSaving, setBioSaving] = useState(false);
-  const [bioError, setBioError] = useState('');
-
   const goToPage = (p) => {
     const next = Math.max(1, p);
     router.push(`/following/${routeUsername}?page=${next}`);
@@ -120,7 +56,6 @@ export default function FollowingPage() {
       }
 
       try {
-        // Load following list
         const res = await fetch(
           `http://localhost:5000/api/social/following/${encodeURIComponent(
             routeUsername.toLowerCase()
@@ -146,19 +81,6 @@ export default function FollowingPage() {
             hasNext: false,
           }
         );
-
-        // If viewing own following page, also load self profile for bio edit
-        if (!cancelled && isSelf) {
-          try {
-            const p = await getProfile(routeUsername);
-            if (!cancelled) {
-              setProfile(p);
-              setBioDraft(typeof p.bio === 'string' ? p.bio : '');
-            }
-          } catch (e) {
-            if (!cancelled) setBioError(e.message || 'Failed to load profile.');
-          }
-        }
       } catch (err) {
         if (cancelled) return;
         setError(err?.message || 'Failed to load following');
@@ -171,7 +93,7 @@ export default function FollowingPage() {
     return () => {
       cancelled = true;
     };
-  }, [routeUsername, token, pageFromUrl, isSelf]);
+  }, [routeUsername, token, pageFromUrl]);
 
   async function handleToggle(username, index) {
     if (!token) return;
@@ -210,31 +132,6 @@ export default function FollowingPage() {
     }
   }
 
-  /* ===== Handlers for Bio edit (self only) ===== */
-  const startEditBio = useCallback(() => {
-    setBioDraft(profile?.bio || '');
-    setBioEditing(true);
-  }, [profile?.bio]);
-
-  const cancelEditBio = useCallback(() => {
-    setBioDraft(profile?.bio || '');
-    setBioEditing(false);
-  }, [profile?.bio]);
-
-  const saveBio = useCallback(async () => {
-    try {
-      setBioSaving(true);
-      setBioError('');
-      const updated = await updateBio(routeUsername, bioDraft);
-      setProfile(updated);
-      setBioEditing(false);
-    } catch (e) {
-      setBioError(e.message || 'Failed to update bio.');
-    } finally {
-      setBioSaving(false);
-    }
-  }, [routeUsername, bioDraft]);
-
   if (loading) return <main className="p-6 text-white">Loading following…</main>;
   if (error) return <main className="p-6 text-red-500">{error}</main>;
 
@@ -252,63 +149,6 @@ export default function FollowingPage() {
           ← Back to Dashboard
         </button>
       </div>
-
-      {/* ===== Self-only Bio block (edit in place) ===== */}
-      {isSelf && (
-        <div className={`rounded-2xl border ${THEME.boxBorder} ${THEME.boxBg} p-4 mb-6`}>
-          <div className="flex items-center justify-between">
-            <div className={`text-sm ${THEME.titleText}`}>Your Bio</div>
-            {!bioEditing && (
-              <button
-                type="button"
-                onClick={startEditBio}
-                className={`text-sm px-3 py-1 rounded-xl border ${THEME.editBtn}`}
-              >
-                Edit
-              </button>
-            )}
-          </div>
-
-          {!bioEditing && (
-            <div className={`mt-2 text-sm whitespace-pre-wrap ${THEME.bodyText}`}>
-              {typeof profile?.bio === 'string' && profile.bio.trim().length
-                ? profile.bio
-                : 'No bio yet.'}
-            </div>
-          )}
-
-          {bioEditing && (
-            <div className="mt-3">
-              <textarea
-                value={bioDraft}
-                onChange={(e) => setBioDraft(e.target.value)}
-                className={`w-full min-h-[120px] rounded-xl border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 ${THEME.textarea}`}
-                placeholder="Write a short bio..."
-              />
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={saveBio}
-                  disabled={bioSaving}
-                  className={`text-sm px-4 py-2 rounded-xl ${THEME.saveBtn} disabled:opacity-60`}
-                >
-                  {bioSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelEditBio}
-                  disabled={bioSaving}
-                  className={`text-sm px-4 py-2 rounded-xl border ${THEME.cancelBtn} disabled:opacity-60`}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {bioError && <div className="mt-3 text-xs text-red-600">{bioError}</div>}
-        </div>
-      )}
 
       <div className="text-sm text-gray-400 mb-3">
         {pagination.total > 0 ? `${startIdx}–${endIdx} of ${pagination.total}` : '0 results'}

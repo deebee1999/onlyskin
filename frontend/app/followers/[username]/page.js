@@ -162,7 +162,7 @@ export default function FollowersPage() {
             <li key={u.id} className="flex items-center justify-between bg-zinc-800 rounded p-3">
               {/* LEFT: clickable link to the user’s profile */}
               <Link
-                href={u.role === 'creator' ? `/creator/${u.username}` : `/profile/${u.username}`}
+                href={u.role === 'creator' ? `/creator/${u.username}` : `/subscriber/${u.username}`}
                 className="flex items-center gap-3 hover:opacity-90"
                 prefetch={false}
               >

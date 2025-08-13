@@ -5,6 +5,7 @@
    Purpose: Creator Profile Page (no posts)
    - High contrast info boxes
    - Theme colors centralized for easy editing
+   - Resilient email/joined extraction
    ========================================================= */
 
 /* =========================================================
@@ -31,6 +32,9 @@ import { useRouter } from 'next/navigation';
 
 const API_BASE = 'http://localhost:5000';
 
+/* ---------------------------------------------------------
+   Utils: viewer decode, helpers, profile normalization, date format
+   --------------------------------------------------------- */
 function decodeViewer() {
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -49,6 +53,69 @@ function decodeViewer() {
   }
 }
 
+function eqCI(a, b) {
+  if (a == null || b == null) return false;
+  return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function firstDefined(...vals) {
+  for (const v of vals) {
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return undefined;
+}
+
+function normalizeProfile(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+
+  // Support nested user object
+  const u = raw.user && typeof raw.user === 'object' ? raw.user : {};
+
+  const email = firstDefined(
+    raw.email,
+    raw.signup_email,
+    u.email,
+    (raw.contact && raw.contact.email),
+  );
+
+  const created = firstDefined(
+    raw.created_at,
+    raw.joined_at,
+    raw.createdAt,
+    raw.signup_date,
+    u.created_at,
+    u.createdAt
+  );
+
+  const username = firstDefined(raw.username, u.username);
+  const role = firstDefined(raw.role, u.role);
+
+  const banner_url = firstDefined(raw.banner_url, u.banner_url);
+  const avatar_url = firstDefined(raw.avatar_url, u.avatar_url);
+  const bio = firstDefined(raw.bio, u.bio, '');
+
+  return {
+    ...raw,
+    username,
+    role,
+    email,
+    created_at: created,
+    banner_url,
+    avatar_url,
+    bio,
+  };
+}
+
+function formatJoinedDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString();
+}
+
+/* ---------------------------------------------------------
+   API helpers
+   --------------------------------------------------------- */
 async function getProfile(username) {
   const res = await fetch(`${API_BASE}/api/creator/${encodeURIComponent(username)}`, {
     headers: {
@@ -60,7 +127,8 @@ async function getProfile(username) {
     const text = await res.text().catch(() => '');
     throw new Error(`GET profile ${res.status}: ${text || res.statusText}`);
   }
-  return res.json();
+  const json = await res.json();
+  return normalizeProfile(json);
 }
 
 async function updateBio(username, bio) {
@@ -76,18 +144,18 @@ async function updateBio(username, bio) {
     const text = await res.text().catch(() => '');
     throw new Error(`PUT bio ${res.status}: ${text || res.statusText}`);
   }
-  return res.json();
+  const json = await res.json();
+  return normalizeProfile(json);
 }
 
-export default function CreatorProfilePage({ params }) {
+/* ---------------------------------------------------------
+   Component
+   --------------------------------------------------------- */
+export default function CreatorProfilePage({ params = {} }) { // ✅ Default params to avoid undefined
   const router = useRouter();
-  const routeUsername = params?.username || '';
+  const routeUsername = params.username || '';
 
   const viewer = useMemo(() => decodeViewer(), []);
-  const isSelf = useMemo(() => {
-    if (!viewer?.username || !routeUsername) return false;
-    return String(viewer.username).toLowerCase() === String(routeUsername).toLowerCase();
-  }, [viewer?.username, routeUsername]);
 
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
@@ -97,6 +165,20 @@ export default function CreatorProfilePage({ params }) {
   const [editing, setEditing] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // ✅ isSelf placed after profile is defined, so it can safely read profile.*
+  const isSelf = useMemo(() => {
+    const vUser = viewer?.username;
+    const vEmail = viewer?.email;
+    const pUser = profile?.username;
+    const pEmail = profile?.email;
+
+    return (
+      (vUser && routeUsername && eqCI(vUser, routeUsername)) ||
+      (vUser && pUser && eqCI(vUser, pUser)) ||
+      (vEmail && pEmail && eqCI(vEmail, pEmail))
+    );
+  }, [viewer?.username, viewer?.email, routeUsername, profile?.username, profile?.email]);
 
   useEffect(() => {
     let alive = true;
@@ -243,7 +325,7 @@ export default function CreatorProfilePage({ params }) {
         <div className={`rounded-2xl border ${THEME.boxBorder} p-4 ${THEME.boxBackground}`}>
           <div className={`text-sm ${THEME.boxTitle}`}>Joined</div>
           <div className={`text-sm ${THEME.boxContent}`}>
-            {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}
+            {formatJoinedDate(profile.created_at)}
           </div>
         </div>
       </div>

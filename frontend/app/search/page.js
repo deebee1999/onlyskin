@@ -158,10 +158,17 @@ export default function SearchPage() {
             Notifications
           </Link>
           {user?.username && (
-            <Link href={`/profile/${user.username}`} className="hover:underline">
-              Profile
-            </Link>
-          )}
+  <Link
+    href={user.role === 'creator'
+      ? `/creator/${user.username}`
+      : `/subscriber/${user.username}`
+    }
+    className="hover:underline"
+  >
+    Profile
+  </Link>
+)}
+
         </div>
       </nav>
 
